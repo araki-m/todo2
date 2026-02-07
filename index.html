@@ -16,7 +16,7 @@
     }
 
     .container {
-      max-width: 600px;
+      max-width: 760px;
       margin: 0 auto;
     }
 
@@ -31,10 +31,12 @@
       display: flex;
       gap: 8px;
       margin-bottom: 24px;
+      flex-wrap: wrap;
     }
 
-    .input-area input {
+    .input-area input[type="text"] {
       flex: 1;
+      min-width: 180px;
       padding: 12px 16px;
       border: 2px solid #ddd;
       border-radius: 8px;
@@ -43,7 +45,23 @@
       transition: border-color 0.2s;
     }
 
-    .input-area input:focus {
+    .input-area input[type="text"]:focus {
+      border-color: #4a90d9;
+    }
+
+    .input-area select,
+    .input-area input[type="date"] {
+      padding: 12px 12px;
+      border: 2px solid #ddd;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      outline: none;
+      background: #fff;
+      transition: border-color 0.2s;
+    }
+
+    .input-area select:focus,
+    .input-area input[type="date"]:focus {
       border-color: #4a90d9;
     }
 
@@ -76,7 +94,13 @@
       border-radius: 8px;
       margin-bottom: 8px;
       box-shadow: 0 1px 3px rgba(0,0,0,0.08);
-      transition: opacity 0.2s;
+      transition: opacity 0.2s, background 0.2s, border-color 0.2s;
+      border: 2px solid transparent;
+    }
+
+    .todo-item.urgent {
+      background: #fff0f0;
+      border-color: #e74c3c;
     }
 
     .todo-no {
@@ -91,13 +115,40 @@
       height: 20px;
       cursor: pointer;
       accent-color: #4a90d9;
+      flex-shrink: 0;
+    }
+
+    .todo-body {
+      flex: 1;
+      min-width: 0;
     }
 
     .todo-text {
-      flex: 1;
       font-size: 1rem;
       word-break: break-word;
     }
+
+    .todo-meta {
+      display: flex;
+      gap: 12px;
+      margin-top: 4px;
+      font-size: 0.8rem;
+      color: #888;
+      flex-wrap: wrap;
+    }
+
+    .category-badge {
+      display: inline-block;
+      padding: 1px 8px;
+      border-radius: 10px;
+      font-size: 0.75rem;
+      font-weight: bold;
+      color: #fff;
+    }
+
+    .category-badge.cat-work { background: #4a90d9; }
+    .category-badge.cat-private { background: #27ae60; }
+    .category-badge.cat-other { background: #95a5a6; }
 
     .todo-item.done {
       opacity: 0.5;
@@ -105,6 +156,11 @@
 
     .todo-item.done .todo-text {
       text-decoration: line-through;
+    }
+
+    .todo-item.done.urgent {
+      background: #fff;
+      border-color: transparent;
     }
 
     .delete-btn {
@@ -116,6 +172,7 @@
       padding: 4px 8px;
       border-radius: 4px;
       transition: color 0.2s, background 0.2s;
+      flex-shrink: 0;
     }
 
     .delete-btn:hover {
@@ -136,6 +193,12 @@
     <h1>TODO</h1>
     <div class="input-area">
       <input type="text" id="todoInput" placeholder="やることを入力...">
+      <select id="categoryInput">
+        <option value="work">仕事</option>
+        <option value="private">プライベート</option>
+        <option value="other">その他</option>
+      </select>
+      <input type="date" id="deadlineInput" title="締め切り日">
       <button id="addBtn">追加</button>
     </div>
     <ul class="todo-list" id="todoList"></ul>
@@ -143,6 +206,8 @@
 
   <script>
     const STORAGE_KEY = 'todo-app-data';
+    const CATEGORY_LABELS = { work: '仕事', private: 'プライベート', other: 'その他' };
+    const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
     function loadData() {
       const raw = localStorage.getItem(STORAGE_KEY);
@@ -156,6 +221,15 @@
       localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
     }
 
+    function isUrgent(deadline) {
+      if (!deadline) return false;
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const dl = new Date(deadline + 'T00:00:00');
+      const diff = (dl - today) / MS_PER_DAY;
+      return diff <= 2;
+    }
+
     function render(data) {
       const list = document.getElementById('todoList');
       list.innerHTML = '';
@@ -167,7 +241,8 @@
 
       data.todos.forEach((todo) => {
         const li = document.createElement('li');
-        li.className = 'todo-item' + (todo.done ? ' done' : '');
+        const urgent = !todo.done && isUrgent(todo.deadline);
+        li.className = 'todo-item' + (todo.done ? ' done' : '') + (urgent ? ' urgent' : '');
 
         const no = document.createElement('span');
         no.className = 'todo-no';
@@ -182,9 +257,36 @@
           render(data);
         });
 
-        const text = document.createElement('span');
+        const body = document.createElement('div');
+        body.className = 'todo-body';
+
+        const text = document.createElement('div');
         text.className = 'todo-text';
         text.textContent = todo.text;
+
+        const meta = document.createElement('div');
+        meta.className = 'todo-meta';
+
+        const catBadge = document.createElement('span');
+        const catKey = todo.category || 'other';
+        catBadge.className = 'category-badge cat-' + catKey;
+        catBadge.textContent = CATEGORY_LABELS[catKey] || 'その他';
+        meta.appendChild(catBadge);
+
+        if (todo.createdAt) {
+          const created = document.createElement('span');
+          created.textContent = '登録: ' + todo.createdAt;
+          meta.appendChild(created);
+        }
+
+        if (todo.deadline) {
+          const dl = document.createElement('span');
+          dl.textContent = '締切: ' + todo.deadline;
+          if (urgent) dl.style.color = '#e74c3c';
+          meta.appendChild(dl);
+        }
+
+        body.append(text, meta);
 
         const del = document.createElement('button');
         del.className = 'delete-btn';
@@ -196,15 +298,29 @@
           render(data);
         });
 
-        li.append(no, cb, text, del);
+        li.append(no, cb, body, del);
         list.appendChild(li);
       });
     }
 
-    function addTodo(data, text) {
+    function todayStr() {
+      const d = new Date();
+      return d.getFullYear() + '-' +
+        String(d.getMonth() + 1).padStart(2, '0') + '-' +
+        String(d.getDate()).padStart(2, '0');
+    }
+
+    function addTodo(data, text, category, deadline) {
       text = text.trim();
       if (!text) return;
-      data.todos.push({ no: data.nextNo, text: text, done: false });
+      data.todos.push({
+        no: data.nextNo,
+        text: text,
+        done: false,
+        createdAt: todayStr(),
+        category: category,
+        deadline: deadline || null
+      });
       data.nextNo++;
       saveData(data);
       render(data);
@@ -215,16 +331,21 @@
     render(data);
 
     const input = document.getElementById('todoInput');
+    const categoryInput = document.getElementById('categoryInput');
+    const deadlineInput = document.getElementById('deadlineInput');
+
     document.getElementById('addBtn').addEventListener('click', () => {
-      addTodo(data, input.value);
+      addTodo(data, input.value, categoryInput.value, deadlineInput.value);
       input.value = '';
+      deadlineInput.value = '';
       input.focus();
     });
 
     input.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') {
-        addTodo(data, input.value);
+        addTodo(data, input.value, categoryInput.value, deadlineInput.value);
         input.value = '';
+        deadlineInput.value = '';
       }
     });
   </script>
