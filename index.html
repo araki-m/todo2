@@ -864,6 +864,9 @@
       btn.classList.add('active');
       document.querySelectorAll('.page-panel').forEach(p => p.classList.remove('active'));
       document.getElementById('panel' + btn.dataset.page.charAt(0).toUpperCase() + btn.dataset.page.slice(1)).classList.add('active');
+      if (btn.dataset.page === 'analysis') {
+        renderCompletionChart(data);
+      }
     });
 
     document.getElementById('filterTabs').addEventListener('click', (e) => {
