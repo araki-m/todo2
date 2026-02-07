@@ -180,6 +180,34 @@
       background: #ffeaea;
     }
 
+    .filter-tabs {
+      display: flex;
+      gap: 4px;
+      margin-bottom: 16px;
+    }
+
+    .filter-tabs button {
+      flex: 1;
+      padding: 8px 0;
+      border: 2px solid #ddd;
+      border-radius: 8px;
+      background: #fff;
+      font-size: 0.9rem;
+      cursor: pointer;
+      color: #666;
+      transition: background 0.2s, border-color 0.2s, color 0.2s;
+    }
+
+    .filter-tabs button:hover {
+      background: #f5f5f5;
+    }
+
+    .filter-tabs button.active {
+      background: #4a90d9;
+      border-color: #4a90d9;
+      color: #fff;
+    }
+
     .empty-msg {
       text-align: center;
       color: #aaa;
@@ -200,6 +228,11 @@
       </select>
       <input type="date" id="deadlineInput" title="締め切り日">
       <button id="addBtn">追加</button>
+    </div>
+    <div class="filter-tabs" id="filterTabs">
+      <button data-filter="all" class="active">すべて</button>
+      <button data-filter="active">未完了</button>
+      <button data-filter="done">完了</button>
     </div>
     <ul class="todo-list" id="todoList"></ul>
   </div>
@@ -230,16 +263,25 @@
       return diff <= 2;
     }
 
+    let currentFilter = 'all';
+
     function render(data) {
       const list = document.getElementById('todoList');
       list.innerHTML = '';
 
-      if (data.todos.length === 0) {
-        list.innerHTML = '<li class="empty-msg">TODOはありません</li>';
+      const filtered = data.todos.filter((todo) => {
+        if (currentFilter === 'active') return !todo.done;
+        if (currentFilter === 'done') return todo.done;
+        return true;
+      });
+
+      if (filtered.length === 0) {
+        const msgs = { all: 'TODOはありません', active: '未完了のTODOはありません', done: '完了したTODOはありません' };
+        list.innerHTML = '<li class="empty-msg">' + msgs[currentFilter] + '</li>';
         return;
       }
 
-      data.todos.forEach((todo) => {
+      filtered.forEach((todo) => {
         const li = document.createElement('li');
         const urgent = !todo.done && isUrgent(todo.deadline);
         li.className = 'todo-item' + (todo.done ? ' done' : '') + (urgent ? ' urgent' : '');
@@ -333,6 +375,15 @@
     const input = document.getElementById('todoInput');
     const categoryInput = document.getElementById('categoryInput');
     const deadlineInput = document.getElementById('deadlineInput');
+
+    document.getElementById('filterTabs').addEventListener('click', (e) => {
+      const btn = e.target.closest('button[data-filter]');
+      if (!btn) return;
+      currentFilter = btn.dataset.filter;
+      document.querySelectorAll('#filterTabs button').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      render(data);
+    });
 
     document.getElementById('addBtn').addEventListener('click', () => {
       addTodo(data, input.value, categoryInput.value, deadlineInput.value);
