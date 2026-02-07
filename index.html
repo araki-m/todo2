@@ -384,6 +384,34 @@
       color: #888;
       margin-top: 4px;
     }
+
+    .chart-canvas {
+      width: 100%;
+      height: 250px;
+      display: block;
+    }
+
+    .chart-legend {
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+      margin-top: 12px;
+      justify-content: center;
+    }
+
+    .chart-legend-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.8rem;
+      color: #555;
+    }
+
+    .chart-legend-color {
+      width: 14px;
+      height: 3px;
+      border-radius: 2px;
+    }
   </style>
 </head>
 <body>
@@ -555,7 +583,161 @@
       });
       html += '</div>';
 
+      // Completion timeline chart
+      html += '<div class="analysis-section">' +
+        '<h2>\u5b8c\u4e86\u6570\u306e\u63a8\u79fb</h2>' +
+        '<canvas class="chart-canvas" id="completionChart"></canvas>' +
+        '<div class="chart-legend" id="chartLegend"></div>' +
+      '</div>';
+
       panel.innerHTML = html;
+      renderCompletionChart(data);
+    }
+
+    function renderCompletionChart(data) {
+      var canvas = document.getElementById('completionChart');
+      if (!canvas) return;
+
+      var doneTodos = data.todos.filter(function(t) { return t.done; });
+      if (doneTodos.length === 0) {
+        canvas.style.display = 'none';
+        document.getElementById('chartLegend').innerHTML =
+          '<span style="color:#aaa;font-size:0.9rem">\u5b8c\u4e86\u6e08\u307fTODO\u304c\u3042\u308a\u307e\u305b\u3093</span>';
+        return;
+      }
+
+      // Build date -> cumulative count map per series
+      var dateMap = {};
+      doneTodos.forEach(function(t) {
+        var d = t.completedAt || t.createdAt;
+        if (!d) return;
+        var cat = t.category || 'other';
+        if (!dateMap[d]) dateMap[d] = { all: 0, work: 0, private: 0, other: 0 };
+        dateMap[d].all++;
+        dateMap[d][cat]++;
+      });
+
+      var dates = Object.keys(dateMap).sort();
+      if (dates.length === 0) return;
+
+      // Expand to continuous date range
+      var allDates = [];
+      var start = new Date(dates[0] + 'T00:00:00');
+      var end = new Date(dates[dates.length - 1] + 'T00:00:00');
+      for (var d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+        allDates.push(d.getFullYear() + '-' +
+          String(d.getMonth() + 1).padStart(2, '0') + '-' +
+          String(d.getDate()).padStart(2, '0'));
+      }
+      if (allDates.length === 0) allDates = dates;
+
+      // Build cumulative series
+      var series = {
+        all: { color: '#1a1a2e', label: '\u5168\u4f53', data: [] },
+        work: { color: '#4a90d9', label: '\u4ed5\u4e8b', data: [] },
+        private: { color: '#27ae60', label: '\u30d7\u30e9\u30a4\u30d9\u30fc\u30c8', data: [] },
+        other: { color: '#95a5a6', label: '\u305d\u306e\u4ed6', data: [] }
+      };
+
+      var cumul = { all: 0, work: 0, private: 0, other: 0 };
+      allDates.forEach(function(dt) {
+        var entry = dateMap[dt];
+        if (entry) {
+          cumul.all += entry.all;
+          cumul.work += entry.work;
+          cumul.private += entry.private;
+          cumul.other += entry.other;
+        }
+        series.all.data.push(cumul.all);
+        series.work.data.push(cumul.work);
+        series.private.data.push(cumul.private);
+        series.other.data.push(cumul.other);
+      });
+
+      var maxVal = Math.max.apply(null, series.all.data) || 1;
+
+      // Draw
+      var dpr = window.devicePixelRatio || 1;
+      var rect = canvas.getBoundingClientRect();
+      canvas.width = rect.width * dpr;
+      canvas.height = rect.height * dpr;
+      var ctx = canvas.getContext('2d');
+      ctx.scale(dpr, dpr);
+
+      var W = rect.width;
+      var H = rect.height;
+      var padL = 40, padR = 16, padT = 16, padB = 40;
+      var chartW = W - padL - padR;
+      var chartH = H - padT - padB;
+
+      // Grid
+      ctx.strokeStyle = '#e0e0e0';
+      ctx.lineWidth = 1;
+      var gridSteps = Math.min(maxVal, 5);
+      for (var i = 0; i <= gridSteps; i++) {
+        var y = padT + chartH - (i / gridSteps) * chartH;
+        ctx.beginPath();
+        ctx.moveTo(padL, y);
+        ctx.lineTo(W - padR, y);
+        ctx.stroke();
+        ctx.fillStyle = '#999';
+        ctx.font = '11px sans-serif';
+        ctx.textAlign = 'right';
+        ctx.fillText(Math.round(maxVal * i / gridSteps), padL - 6, y + 4);
+      }
+
+      // X labels
+      ctx.fillStyle = '#999';
+      ctx.font = '10px sans-serif';
+      ctx.textAlign = 'center';
+      var labelInterval = Math.max(1, Math.floor(allDates.length / 6));
+      allDates.forEach(function(dt, idx) {
+        if (idx % labelInterval === 0 || idx === allDates.length - 1) {
+          var x = padL + (allDates.length === 1 ? chartW / 2 : idx / (allDates.length - 1) * chartW);
+          ctx.save();
+          ctx.translate(x, H - 4);
+          ctx.rotate(-0.4);
+          ctx.fillText(dt.slice(5), 0, 0);
+          ctx.restore();
+        }
+      });
+
+      // Lines
+      var seriesKeys = ['work', 'private', 'other', 'all'];
+      seriesKeys.forEach(function(key) {
+        var s = series[key];
+        ctx.strokeStyle = s.color;
+        ctx.lineWidth = key === 'all' ? 2.5 : 1.8;
+        ctx.beginPath();
+        s.data.forEach(function(val, idx) {
+          var x = padL + (allDates.length === 1 ? chartW / 2 : idx / (allDates.length - 1) * chartW);
+          var y = padT + chartH - (val / maxVal) * chartH;
+          if (idx === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        });
+        ctx.stroke();
+
+        // Dots
+        if (allDates.length <= 30) {
+          s.data.forEach(function(val, idx) {
+            var x = padL + (allDates.length === 1 ? chartW / 2 : idx / (allDates.length - 1) * chartW);
+            var y = padT + chartH - (val / maxVal) * chartH;
+            ctx.fillStyle = s.color;
+            ctx.beginPath();
+            ctx.arc(x, y, 3, 0, Math.PI * 2);
+            ctx.fill();
+          });
+        }
+      });
+
+      // Legend
+      var legend = document.getElementById('chartLegend');
+      legend.innerHTML = seriesKeys.map(function(key) {
+        return '<span class="chart-legend-item">' +
+          '<span class="chart-legend-color" style="background:' + series[key].color + '"></span>' +
+          series[key].label +
+        '</span>';
+      }).join('');
     }
 
     function render(data) {
@@ -592,6 +774,7 @@
         cb.checked = todo.done;
         cb.addEventListener('change', () => {
           todo.done = cb.checked;
+          todo.completedAt = cb.checked ? todayStr() : null;
           saveData(data);
           render(data);
         });
