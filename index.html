@@ -412,6 +412,89 @@
       height: 3px;
       border-radius: 2px;
     }
+
+    /* Data tab */
+    .data-section {
+      background: #fff;
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 16px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    }
+
+    .data-section h2 {
+      font-size: 1rem;
+      color: #1a1a2e;
+      margin-bottom: 16px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid #eee;
+    }
+
+    .data-section p {
+      font-size: 0.85rem;
+      color: #888;
+      margin-bottom: 12px;
+    }
+
+    .data-btn {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .data-btn-export {
+      background: #4a90d9;
+      color: #fff;
+    }
+
+    .data-btn-export:hover {
+      background: #357abd;
+    }
+
+    .data-btn-import {
+      background: #27ae60;
+      color: #fff;
+    }
+
+    .data-btn-import:hover {
+      background: #1e8e4e;
+    }
+
+    .data-file-input {
+      display: none;
+    }
+
+    .data-import-area {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .data-import-name {
+      font-size: 0.85rem;
+      color: #555;
+    }
+
+    .data-msg {
+      margin-top: 10px;
+      font-size: 0.85rem;
+      padding: 8px 12px;
+      border-radius: 6px;
+    }
+
+    .data-msg-success {
+      background: #e8f5e9;
+      color: #2e7d32;
+    }
+
+    .data-msg-error {
+      background: #ffebee;
+      color: #c62828;
+    }
   </style>
 </head>
 <body>
@@ -421,6 +504,7 @@
     <div class="page-tabs" id="pageTabs">
       <button data-page="todo" class="active">TODO</button>
       <button data-page="analysis">分析</button>
+      <button data-page="data">データ</button>
     </div>
     <div class="page-panel active" id="panelTodo">
       <div class="input-area">
@@ -447,6 +531,23 @@
       <ul class="todo-list" id="todoList"></ul>
     </div>
     <div class="page-panel" id="panelAnalysis"></div>
+    <div class="page-panel" id="panelData">
+      <div class="data-section">
+        <h2>エクスポート</h2>
+        <p>すべてのTODOデータをJSONファイルとしてダウンロードします。</p>
+        <button class="data-btn data-btn-export" id="exportBtn">JSONをダウンロード</button>
+      </div>
+      <div class="data-section">
+        <h2>インポート</h2>
+        <p>JSONファイルを読み込んでデータを復元します。現在のデータは上書きされます。</p>
+        <div class="data-import-area">
+          <button class="data-btn data-btn-import" id="importBtn">ファイルを選択</button>
+          <span class="data-import-name" id="importFileName"></span>
+          <input type="file" accept=".json" class="data-file-input" id="importFile">
+        </div>
+        <div id="importMsg"></div>
+      </div>
+    </div>
   </div>
 
   <script>
@@ -891,6 +992,48 @@
         btn.classList.add('active-' + currentCategoryFilter);
       }
       render(data);
+    });
+
+    // Export
+    document.getElementById('exportBtn').addEventListener('click', () => {
+      const json = JSON.stringify(data, null, 2);
+      const blob = new Blob([json], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'todo-backup-' + todayStr() + '.json';
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+
+    // Import
+    document.getElementById('importBtn').addEventListener('click', () => {
+      document.getElementById('importFile').click();
+    });
+
+    document.getElementById('importFile').addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      document.getElementById('importFileName').textContent = file.name;
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        const msgEl = document.getElementById('importMsg');
+        try {
+          const imported = JSON.parse(ev.target.result);
+          if (!imported.todos || !Array.isArray(imported.todos) || typeof imported.nextNo !== 'number') {
+            throw new Error('invalid format');
+          }
+          data.todos = imported.todos;
+          data.nextNo = imported.nextNo;
+          saveData(data);
+          render(data);
+          msgEl.innerHTML = '<div class="data-msg data-msg-success">\u30a4\u30f3\u30dd\u30fc\u30c8\u304c\u5b8c\u4e86\u3057\u307e\u3057\u305f\uff08' + data.todos.length + '\u4ef6\uff09</div>';
+        } catch (err) {
+          msgEl.innerHTML = '<div class="data-msg data-msg-error">\u30a8\u30e9\u30fc: \u6709\u52b9\u306aTODO JSON\u30d5\u30a1\u30a4\u30eb\u3067\u306f\u3042\u308a\u307e\u305b\u3093</div>';
+        }
+      };
+      reader.readAsText(file);
+      e.target.value = '';
     });
 
     document.getElementById('addBtn').addEventListener('click', () => {
