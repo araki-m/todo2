@@ -22,9 +22,41 @@
 
     h1 {
       text-align: center;
-      margin-bottom: 30px;
+      margin-bottom: 16px;
       font-size: 2rem;
       color: #1a1a2e;
+    }
+
+    .status-bar {
+      margin-bottom: 24px;
+    }
+
+    .status-bar-label {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.85rem;
+      color: #666;
+      margin-bottom: 6px;
+    }
+
+    .status-bar-track {
+      height: 20px;
+      background: #e0e0e0;
+      border-radius: 10px;
+      overflow: hidden;
+      display: flex;
+    }
+
+    .status-bar-done {
+      background: #4a90d9;
+      height: 100%;
+      transition: width 0.3s;
+    }
+
+    .status-bar-active {
+      background: #f39c12;
+      height: 100%;
+      transition: width 0.3s;
     }
 
     .input-area {
@@ -219,6 +251,7 @@
 <body>
   <div class="container">
     <h1>TODO</h1>
+    <div class="status-bar" id="statusBar"></div>
     <div class="input-area">
       <input type="text" id="todoInput" placeholder="やることを入力...">
       <select id="categoryInput">
@@ -265,7 +298,34 @@
 
     let currentFilter = 'all';
 
+    function renderStatusBar(data) {
+      const bar = document.getElementById('statusBar');
+      const total = data.todos.length;
+      const doneCount = data.todos.filter(t => t.done).length;
+      const activeCount = total - doneCount;
+
+      if (total === 0) {
+        bar.innerHTML = '';
+        return;
+      }
+
+      const donePct = (doneCount / total * 100).toFixed(1);
+      const activePct = (activeCount / total * 100).toFixed(1);
+
+      bar.innerHTML =
+        '<div class="status-bar-label">' +
+          '<span>\u5b8c\u4e86: ' + doneCount + '</span>' +
+          '<span>\u672a\u5b8c\u4e86: ' + activeCount + '</span>' +
+          '<span>\u5408\u8a08: ' + total + '</span>' +
+        '</div>' +
+        '<div class="status-bar-track">' +
+          '<div class="status-bar-done" style="width:' + donePct + '%"></div>' +
+          '<div class="status-bar-active" style="width:' + activePct + '%"></div>' +
+        '</div>';
+    }
+
     function render(data) {
+      renderStatusBar(data);
       const list = document.getElementById('todoList');
       list.innerHTML = '';
 
