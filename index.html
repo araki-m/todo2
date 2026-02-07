@@ -280,6 +280,24 @@
       color: #fff;
     }
 
+    .filter-tabs button.active-work {
+      background: #4a90d9;
+      border-color: #4a90d9;
+      color: #fff;
+    }
+
+    .filter-tabs button.active-private {
+      background: #27ae60;
+      border-color: #27ae60;
+      color: #fff;
+    }
+
+    .filter-tabs button.active-other {
+      background: #95a5a6;
+      border-color: #95a5a6;
+      color: #fff;
+    }
+
     .empty-msg {
       text-align: center;
       color: #aaa;
@@ -392,6 +410,12 @@
         <button data-filter="active">未完了</button>
         <button data-filter="done">完了</button>
       </div>
+      <div class="filter-tabs" id="categoryFilterTabs">
+        <button data-cat="all" class="active">全カテゴリ</button>
+        <button data-cat="work">仕事</button>
+        <button data-cat="private">プライベート</button>
+        <button data-cat="other">その他</button>
+      </div>
       <ul class="todo-list" id="todoList"></ul>
     </div>
     <div class="page-panel" id="panelAnalysis"></div>
@@ -433,6 +457,7 @@
     }
 
     let currentFilter = 'all';
+    let currentCategoryFilter = 'all';
 
     function renderStatusBar(data) {
       const bar = document.getElementById('statusBar');
@@ -541,8 +566,9 @@
       list.innerHTML = '';
 
       const filtered = data.todos.filter((todo) => {
-        if (currentFilter === 'active') return !todo.done;
-        if (currentFilter === 'done') return todo.done;
+        if (currentFilter === 'active' && todo.done) return false;
+        if (currentFilter === 'done' && !todo.done) return false;
+        if (currentCategoryFilter !== 'all' && (todo.category || 'other') !== currentCategoryFilter) return false;
         return true;
       });
 
@@ -663,6 +689,21 @@
       currentFilter = btn.dataset.filter;
       document.querySelectorAll('#filterTabs button').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
+      render(data);
+    });
+
+    document.getElementById('categoryFilterTabs').addEventListener('click', (e) => {
+      const btn = e.target.closest('button[data-cat]');
+      if (!btn) return;
+      currentCategoryFilter = btn.dataset.cat;
+      document.querySelectorAll('#categoryFilterTabs button').forEach(b => {
+        b.classList.remove('active', 'active-work', 'active-private', 'active-other');
+      });
+      if (currentCategoryFilter === 'all') {
+        btn.classList.add('active');
+      } else {
+        btn.classList.add('active-' + currentCategoryFilter);
+      }
       render(data);
     });
 
