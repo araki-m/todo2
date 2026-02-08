@@ -311,6 +311,16 @@
       border-top: 3px solid #4a90d9;
     }
 
+    .todo-item.selected {
+      border-color: #4a90d9;
+      box-shadow: 0 0 0 1px #4a90d9, 0 1px 3px rgba(0,0,0,0.08);
+    }
+
+    .todo-item.selected.urgent {
+      border-color: #e74c3c;
+      box-shadow: 0 0 0 1px #e74c3c, 0 1px 3px rgba(0,0,0,0.08);
+    }
+
     .empty-msg {
       text-align: center;
       color: #aaa;
@@ -600,6 +610,7 @@
 
     let currentFilter = 'all';
     let currentCategoryFilter = 'all';
+    let selectedNo = null;
 
     function renderStatusBar(data) {
       const bar = document.getElementById('statusBar');
@@ -877,9 +888,16 @@
       filtered.forEach((todo) => {
         const li = document.createElement('li');
         const urgent = !todo.done && isUrgent(todo.deadline);
-        li.className = 'todo-item' + (todo.done ? ' done' : '') + (urgent ? ' urgent' : '');
+        li.className = 'todo-item' + (todo.done ? ' done' : '') + (urgent ? ' urgent' : '') + (selectedNo === todo.no ? ' selected' : '');
         li.draggable = true;
         li.dataset.no = todo.no;
+
+        li.addEventListener('click', (e) => {
+          if (e.target.closest('.delete-btn') || e.target.type === 'checkbox') return;
+          selectedNo = (selectedNo === todo.no) ? null : todo.no;
+          list.querySelectorAll('.todo-item').forEach(el => el.classList.remove('selected'));
+          if (selectedNo === todo.no) li.classList.add('selected');
+        });
 
         li.addEventListener('dragstart', (e) => {
           li.classList.add('dragging');
@@ -1105,6 +1123,93 @@
         addTodo(data, input.value, categoryInput.value, deadlineInput.value);
         input.value = '';
         deadlineInput.value = '';
+      }
+    });
+
+    // Keyboard shortcuts
+    function getFilteredNos() {
+      return data.todos
+        .filter(t => {
+          if (currentFilter === 'active' && t.done) return false;
+          if (currentFilter === 'done' && !t.done) return false;
+          if (currentCategoryFilter !== 'all' && (t.category || 'other') !== currentCategoryFilter) return false;
+          return true;
+        })
+        .map(t => t.no);
+    }
+
+    document.addEventListener('keydown', (e) => {
+      const active = document.activeElement;
+      const inInput = active && (active.tagName === 'INPUT' || active.tagName === 'SELECT' || active.tagName === 'TEXTAREA');
+      const todoPanelActive = document.getElementById('panelTodo').classList.contains('active');
+
+      // / → focus input (when not in input)
+      if (e.key === '/' && !inInput && todoPanelActive) {
+        e.preventDefault();
+        input.focus();
+        return;
+      }
+
+      // Escape → blur input / clear selection
+      if (e.key === 'Escape') {
+        if (inInput) {
+          active.blur();
+        }
+        if (selectedNo !== null) {
+          selectedNo = null;
+          document.querySelectorAll('.todo-item.selected').forEach(el => el.classList.remove('selected'));
+        }
+        return;
+      }
+
+      if (!todoPanelActive) return;
+
+      // Arrow ↑↓ → navigate selection
+      if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && !e.ctrlKey && !inInput) {
+        e.preventDefault();
+        const nos = getFilteredNos();
+        if (nos.length === 0) return;
+        if (selectedNo === null) {
+          selectedNo = e.key === 'ArrowDown' ? nos[0] : nos[nos.length - 1];
+        } else {
+          const idx = nos.indexOf(selectedNo);
+          if (e.key === 'ArrowUp' && idx > 0) selectedNo = nos[idx - 1];
+          if (e.key === 'ArrowDown' && idx < nos.length - 1) selectedNo = nos[idx + 1];
+        }
+        render(data);
+        const sel = document.querySelector('.todo-item.selected');
+        if (sel) sel.scrollIntoView({ block: 'nearest' });
+        return;
+      }
+
+      // Ctrl+Enter → toggle done
+      if (e.key === 'Enter' && e.ctrlKey && selectedNo !== null) {
+        e.preventDefault();
+        const todo = data.todos.find(t => t.no === selectedNo);
+        if (todo) {
+          todo.done = !todo.done;
+          todo.completedAt = todo.done ? todayStr() : null;
+          saveData(data);
+          render(data);
+        }
+        return;
+      }
+
+      // Ctrl+↑↓ → move item in data array
+      if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && e.ctrlKey && selectedNo !== null) {
+        e.preventDefault();
+        const idx = data.todos.findIndex(t => t.no === selectedNo);
+        if (idx === -1) return;
+        const newIdx = e.key === 'ArrowUp' ? idx - 1 : idx + 1;
+        if (newIdx < 0 || newIdx >= data.todos.length) return;
+        const tmp = data.todos[idx];
+        data.todos[idx] = data.todos[newIdx];
+        data.todos[newIdx] = tmp;
+        saveData(data);
+        render(data);
+        const sel = document.querySelector('.todo-item.selected');
+        if (sel) sel.scrollIntoView({ block: 'nearest' });
+        return;
       }
     });
   </script>
