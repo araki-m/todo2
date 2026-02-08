@@ -298,6 +298,19 @@
       color: #fff;
     }
 
+    .todo-item[draggable="true"] {
+      cursor: grab;
+    }
+
+    .todo-item.dragging {
+      opacity: 0.4;
+      cursor: grabbing;
+    }
+
+    .todo-item.drag-over {
+      border-top: 3px solid #4a90d9;
+    }
+
     .empty-msg {
       text-align: center;
       color: #aaa;
@@ -865,6 +878,50 @@
         const li = document.createElement('li');
         const urgent = !todo.done && isUrgent(todo.deadline);
         li.className = 'todo-item' + (todo.done ? ' done' : '') + (urgent ? ' urgent' : '');
+        li.draggable = true;
+        li.dataset.no = todo.no;
+
+        li.addEventListener('dragstart', (e) => {
+          li.classList.add('dragging');
+          e.dataTransfer.effectAllowed = 'move';
+          e.dataTransfer.setData('text/plain', String(todo.no));
+        });
+
+        li.addEventListener('dragend', () => {
+          li.classList.remove('dragging');
+          list.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
+        });
+
+        li.addEventListener('dragover', (e) => {
+          e.preventDefault();
+          e.dataTransfer.dropEffect = 'move';
+          const dragging = list.querySelector('.dragging');
+          if (dragging && dragging !== li) {
+            list.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
+            li.classList.add('drag-over');
+          }
+        });
+
+        li.addEventListener('dragleave', () => {
+          li.classList.remove('drag-over');
+        });
+
+        li.addEventListener('drop', (e) => {
+          e.preventDefault();
+          li.classList.remove('drag-over');
+          const draggedNo = Number(e.dataTransfer.getData('text/plain'));
+          const targetNo = todo.no;
+          if (draggedNo === targetNo) return;
+
+          const fromIdx = data.todos.findIndex(t => t.no === draggedNo);
+          const toIdx = data.todos.findIndex(t => t.no === targetNo);
+          if (fromIdx === -1 || toIdx === -1) return;
+
+          const [moved] = data.todos.splice(fromIdx, 1);
+          data.todos.splice(toIdx, 0, moved);
+          saveData(data);
+          render(data);
+        });
 
         const no = document.createElement('span');
         no.className = 'todo-no';
